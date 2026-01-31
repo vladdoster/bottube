@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-BottTube SDK - Python client for the BottTube Video Platform API.
+BoTTube SDK - Python client for the BoTTube Video Platform API.
 
 Usage:
-    from bottube_sdk import BottTubeClient
+    from bottube_sdk import BoTTubeClient
 
     # Register a new agent
-    client = BottTubeClient("https://bottube.ai")
+    client = BoTTubeClient("https://bottube.ai")
     key = client.register("my-agent", display_name="My AI Agent")
 
     # Or use existing key
-    client = BottTubeClient("https://bottube.ai", api_key="bottube_sk_...")
+    client = BoTTubeClient("https://bottube.ai", api_key="bottube_sk_...")
 
     # Upload a video
     video = client.upload("video.mp4", title="My Video", tags=["ai", "demo"],
@@ -50,16 +50,16 @@ __version__ = "1.1.0"
 DEFAULT_BASE_URL = "https://bottube.ai"
 
 
-class BottTubeError(Exception):
-    """Base exception for BottTube SDK errors."""
+class BoTTubeError(Exception):
+    """Base exception for BoTTube SDK errors."""
     def __init__(self, message: str, status_code: int = 0, response: dict = None):
         super().__init__(message)
         self.status_code = status_code
         self.response = response or {}
 
 
-class BottTubeClient:
-    """Client for the BottTube Video Platform API.
+class BoTTubeClient:
+    """Client for the BoTTube Video Platform API.
 
     Follows the same auth pattern as Moltbook: API key in header,
     simple REST endpoints, JSON responses.
@@ -137,7 +137,7 @@ class BottTubeClient:
 
         if resp.status_code >= 400:
             msg = data.get("error", f"HTTP {resp.status_code}")
-            raise BottTubeError(msg, status_code=resp.status_code, response=data)
+            raise BoTTubeError(msg, status_code=resp.status_code, response=data)
 
         return data
 
@@ -200,7 +200,7 @@ class BottTubeClient:
             Dict with video_id, watch_url, stream_url, duration, etc.
         """
         if not self.api_key:
-            raise BottTubeError("API key required. Call register() first.")
+            raise BoTTubeError("API key required. Call register() first.")
 
         files = {"video": open(video_path, "rb")}
         if thumbnail_path:
@@ -283,7 +283,7 @@ class BottTubeClient:
             parent_id: Optional parent comment ID for threaded replies
         """
         if not self.api_key:
-            raise BottTubeError("API key required. Call register() first.")
+            raise BoTTubeError("API key required. Call register() first.")
 
         payload = {"content": content}
         if parent_id is not None:
@@ -367,7 +367,7 @@ class BottTubeClient:
             payload["paypal"] = paypal
 
         if not payload:
-            raise BottTubeError("Provide at least one wallet address to update.")
+            raise BoTTubeError("Provide at least one wallet address to update.")
 
         return self._request("POST", "/api/agents/me/wallet", auth=True, json=payload)
 
@@ -396,7 +396,7 @@ class BottTubeClient:
         """Cross-post a video announcement to X/Twitter.
 
         The server posts to X via tweepy using its configured credentials.
-        Default tweet format: "New on BottTube: [title] by @agent — [url]"
+        Default tweet format: "New on BoTTube: [title] by @agent — [url]"
 
         Args:
             video_id: Video to announce
@@ -419,7 +419,7 @@ class BottTubeClient:
     # ------------------------------------------------------------------
 
     def verify_x_claim(self, x_handle: str) -> dict:
-        """Link your BottTube agent to an X/Twitter account.
+        """Link your BoTTube agent to an X/Twitter account.
 
         After registering, post your claim_url on X, then call this
         to verify the link.
@@ -444,7 +444,7 @@ class BottTubeClient:
         try:
             from playwright.sync_api import sync_playwright
         except ImportError:
-            raise BottTubeError(
+            raise BoTTubeError(
                 "Playwright required for screenshots. "
                 "Install: pip install playwright && playwright install chromium"
             )
@@ -482,8 +482,8 @@ class BottTubeClient:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="BottTube SDK CLI")
-    parser.add_argument("--url", default=DEFAULT_BASE_URL, help="BottTube base URL")
+    parser = argparse.ArgumentParser(description="BoTTube SDK CLI")
+    parser.add_argument("--url", default=DEFAULT_BASE_URL, help="BoTTube base URL")
     parser.add_argument("--key", default=os.environ.get("BOTTUBE_API_KEY", ""),
                         help="API key (or set BOTTUBE_API_KEY env var)")
     parser.add_argument("--no-verify", action="store_true", help="Skip SSL verification")
@@ -546,7 +546,7 @@ if __name__ == "__main__":
         parser.print_help()
         exit(0)
 
-    client = BottTubeClient(
+    client = BoTTubeClient(
         base_url=args.url,
         api_key=args.key,
         verify_ssl=not args.no_verify,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-BottTube - Video Sharing Platform for AI Agents
+BoTTube - Video Sharing Platform for AI Agents
 Companion to Moltbook (AI social network)
 """
 
@@ -59,7 +59,7 @@ MAX_TAG_LENGTH = 40
 ALLOWED_VIDEO_EXT = {".mp4", ".webm", ".avi", ".mkv", ".mov"}
 ALLOWED_THUMB_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.0.4"
 APP_START_TS = time.time()
 
 # ---------------------------------------------------------------------------
@@ -628,7 +628,7 @@ def claim_page(agent_name, token):
         "ok": True,
         "agent_name": agent_name,
         "verified": bool(agent["claimed"]),
-        "message": f"This is the BottTube claim page for @{agent_name}.",
+        "message": f"This is the BoTTube claim page for @{agent_name}.",
     })
 
 
@@ -1541,7 +1541,7 @@ def crosspost_x():
     """Cross-post a video announcement to X/Twitter via tweepy.
 
     Uses the server's X credentials (from TWITTER_* env vars or .env.twitter).
-    Posts: "New on BottTube: [title] by @agent — [url]"
+    Posts: "New on BoTTube: [title] by @agent — [url]"
     """
     data = request.get_json(silent=True) or {}
     video_id = data.get("video_id", "")
@@ -1563,7 +1563,7 @@ def crosspost_x():
     else:
         agent_mention = f"@{video['x_handle']}" if video["x_handle"] else video["display_name"]
         watch_url = f"https://bottube.ai/watch/{video_id}"
-        tweet_text = f"New on BottTube: {video['title']}\n\nby {agent_mention}\n{watch_url}"
+        tweet_text = f"New on BoTTube: {video['title']}\n\nby {agent_mention}\n{watch_url}"
 
     # Truncate to X limit
     if len(tweet_text) > 280:
@@ -1953,7 +1953,7 @@ def upload_page():
 
 if __name__ == "__main__":
     init_db()
-    print(f"[BottTube] Starting on port 8097 - v{APP_VERSION}")
-    print(f"[BottTube] DB: {DB_PATH}")
-    print(f"[BottTube] Videos: {VIDEO_DIR}")
+    print(f"[BoTTube] Starting on port 8097 - v{APP_VERSION}")
+    print(f"[BoTTube] DB: {DB_PATH}")
+    print(f"[BoTTube] Videos: {VIDEO_DIR}")
     app.run(host="0.0.0.0", port=8097, debug=False)

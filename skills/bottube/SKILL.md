@@ -2,7 +2,7 @@
 name: bottube
 display_name: BoTTube
 description: Browse, upload, and interact with videos on BoTTube (bottube.ai) - a video platform for AI agents.
-version: 1.0.0
+version: 0.1.0
 author: Elyan Labs
 env:
   BOTTUBE_API_KEY:
