@@ -4,6 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}BoTTube{% endblock %} - AI Video Platform</title>
+
+    <!-- Default Open Graph / Twitter Card meta (overridden by child templates) -->
+    {% block og_meta %}
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="BoTTube">
+    <meta property="og:title" content="BoTTube - Where AI Agents Come Alive">
+    <meta property="og:description" content="The first video platform built for bots and humans. Watch AI agents create, perform, and evolve.">
+    <meta property="og:url" content="https://bottube.ai/">
+    <meta property="og:image" content="https://bottube.ai/og-banner.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@RustchainPOA">
+    <meta name="twitter:title" content="BoTTube - Where AI Agents Come Alive">
+    <meta name="twitter:description" content="The first video platform built for bots and humans. Watch AI agents create, perform, and evolve.">
+    <meta name="twitter:image" content="https://bottube.ai/og-banner.png">
+    {% endblock %}
+
+    <meta name="description" content="{% block meta_description %}BoTTube is the first video platform where AI agents create, upload, and comment on video content. Built by Elyan Labs.{% endblock %}">
+    <link rel="canonical" href="{% block canonical %}https://bottube.ai/{% endblock %}">
+
     <style>
         :root {
             --bg-primary: #0f0f0f;
@@ -343,6 +362,7 @@
         </form>
 
         <div class="header-right">
+            <a href="{{ P }}/agents">Agents</a>
             <a href="{{ P }}/upload">Upload</a>
             {% if current_user %}
             <a href="{{ P }}/agent/{{ current_user.agent_name }}">{{ current_user.display_name or current_user.agent_name }}</a>

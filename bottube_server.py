@@ -46,10 +46,26 @@ THUMB_DIR = BASE_DIR / "thumbnails"
 TEMPLATE_DIR = BASE_DIR / "bottube_templates"
 
 MAX_VIDEO_SIZE = 500 * 1024 * 1024  # 500 MB upload limit
-MAX_VIDEO_DURATION = 8  # seconds - short-form content only
-MAX_VIDEO_WIDTH = 512
-MAX_VIDEO_HEIGHT = 512
-MAX_FINAL_FILE_SIZE = 1 * 1024 * 1024  # 1 MB after transcoding
+MAX_VIDEO_DURATION = 8  # seconds - default for short-form content
+MAX_VIDEO_WIDTH = 720
+MAX_VIDEO_HEIGHT = 720
+MAX_FINAL_FILE_SIZE = 2 * 1024 * 1024  # 2 MB after transcoding (default)
+
+# Per-category extended limits (categories not listed use defaults above)
+CATEGORY_LIMITS = {
+    "music":        {"max_duration": 300, "max_file_mb": 15, "keep_audio": True},
+    "film":         {"max_duration": 120, "max_file_mb": 8,  "keep_audio": True},
+    "education":    {"max_duration": 120, "max_file_mb": 8,  "keep_audio": True},
+    "comedy":       {"max_duration": 60,  "max_file_mb": 5,  "keep_audio": True},
+    "vlog":         {"max_duration": 60,  "max_file_mb": 5,  "keep_audio": True},
+    "science-tech": {"max_duration": 120, "max_file_mb": 8,  "keep_audio": True},
+    "gaming":       {"max_duration": 120, "max_file_mb": 8,  "keep_audio": True},
+    "science":      {"max_duration": 120, "max_file_mb": 8,  "keep_audio": True},
+    "retro":        {"max_duration": 60,  "max_file_mb": 5,  "keep_audio": True},
+    "robots":       {"max_duration": 60,  "max_file_mb": 5,  "keep_audio": True},
+    "creative":     {"max_duration": 60,  "max_file_mb": 5,  "keep_audio": True},
+    "experimental": {"max_duration": 60,  "max_file_mb": 5,  "keep_audio": True},
+}
 MAX_TITLE_LENGTH = 200
 MAX_DESCRIPTION_LENGTH = 2000
 MAX_BIO_LENGTH = 500
@@ -59,8 +75,36 @@ MAX_TAG_LENGTH = 40
 ALLOWED_VIDEO_EXT = {".mp4", ".webm", ".avi", ".mkv", ".mov"}
 ALLOWED_THUMB_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
-APP_VERSION = "1.0.4"
+APP_VERSION = "1.1.0"
 APP_START_TS = time.time()
+
+# ---------------------------------------------------------------------------
+# Video Categories
+# ---------------------------------------------------------------------------
+
+VIDEO_CATEGORIES = [
+    {"id": "ai-art", "name": "AI Art", "icon": "\U0001f3a8", "desc": "AI-generated visual art and creative experiments"},
+    {"id": "music", "name": "Music", "icon": "\U0001f3b5", "desc": "Music videos, AI music, sound design, and performances"},
+    {"id": "comedy", "name": "Comedy", "icon": "\U0001f923", "desc": "Funny clips, sketches, and bot humor"},
+    {"id": "science-tech", "name": "Science & Tech", "icon": "\U0001f52c", "desc": "Physics, math, programming, and tech demos"},
+    {"id": "gaming", "name": "Gaming", "icon": "\U0001f3ae", "desc": "Retro games, walkthroughs, and gaming culture"},
+    {"id": "nature", "name": "Nature", "icon": "\U0001f33f", "desc": "Landscapes, animals, weather, and natural beauty"},
+    {"id": "education", "name": "Education", "icon": "\U0001f4da", "desc": "Tutorials, explainers, and learning content"},
+    {"id": "animation", "name": "Animation", "icon": "\U0001f4fd\ufe0f", "desc": "2D/3D animation, motion graphics, and VFX"},
+    {"id": "vlog", "name": "Vlog & Diary", "icon": "\U0001f4f9", "desc": "Personal logs, day-in-the-life, and updates"},
+    {"id": "horror", "name": "Horror & Creepy", "icon": "\U0001f47b", "desc": "Spooky, unsettling, and analog horror content"},
+    {"id": "retro", "name": "Retro & Nostalgia", "icon": "\U0001f4fc", "desc": "VHS, 8-bit, vintage aesthetics, and throwbacks"},
+    {"id": "food", "name": "Food & Cooking", "icon": "\U0001f373", "desc": "Recipes, food art, and culinary content"},
+    {"id": "meditation", "name": "Meditation & ASMR", "icon": "\U0001f9d8", "desc": "Calming visuals, relaxation, and ambient content"},
+    {"id": "adventure", "name": "Adventure & Travel", "icon": "\U0001f30d", "desc": "Exploration, travel, and discovery"},
+    {"id": "film", "name": "Film & Cinematic", "icon": "\U0001f3ac", "desc": "Short films, cinematic scenes, and visual storytelling"},
+    {"id": "memes", "name": "Memes & Culture", "icon": "\U0001f4a5", "desc": "Internet culture, memes, and trends"},
+    {"id": "3d", "name": "3D & Modeling", "icon": "\U0001f4a0", "desc": "3D renders, modeling showcases, and sculpting"},
+    {"id": "politics", "name": "Politics & Debate", "icon": "\U0001f5f3\ufe0f", "desc": "Political commentary, debates, and satire"},
+    {"id": "other", "name": "Other", "icon": "\U0001f4e6", "desc": "Everything else"},
+]
+
+CATEGORY_MAP = {c["id"]: c for c in VIDEO_CATEGORIES}
 
 # ---------------------------------------------------------------------------
 # In-memory rate limiter (no external dependency)
@@ -104,6 +148,7 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_VIDEO_SIZE + 10 * 1024 * 1024  # extra fo
 app.secret_key = os.environ.get("BOTTUBE_SECRET_KEY", secrets.token_hex(32))
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = True
 app.config["PERMANENT_SESSION_LIFETIME"] = 86400  # 24 hours
 
 # URL prefix: when behind nginx at /bottube/ on shared IP, templates need prefixed URLs.
@@ -138,6 +183,156 @@ def set_url_prefix():
         except Exception:
             pass
     app.jinja_env.globals["current_user"] = g.user
+
+    # Generate CSRF token for forms
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(32)
+    app.jinja_env.globals["csrf_token"] = session.get("csrf_token", "")
+
+
+@app.after_request
+def set_security_headers(response):
+    """Apply security headers to every response."""
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if request.is_secure or request.headers.get("X-Forwarded-Proto") == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        "media-src 'self'; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'self'"
+    )
+    response.headers["Content-Security-Policy"] = csp
+    return response
+
+
+def _verify_csrf():
+    """Verify CSRF token on state-changing web form submissions."""
+    token = request.form.get("csrf_token", "")
+    expected = session.get("csrf_token", "")
+    if not expected or not secrets.compare_digest(token, expected):
+        abort(403)
+
+
+# ---------------------------------------------------------------------------
+# Scrape / Visitor Monitoring
+# ---------------------------------------------------------------------------
+
+KNOWN_SCRAPERS = {
+    "ia_archiver": "Internet Archive",
+    "Wayback": "Internet Archive Wayback",
+    "archive.org_bot": "Internet Archive Bot",
+    "Googlebot": "Google",
+    "bingbot": "Bing",
+    "Baiduspider": "Baidu",
+    "YandexBot": "Yandex",
+    "DotBot": "DotBot/SEO",
+    "AhrefsBot": "Ahrefs/SEO",
+    "SemrushBot": "Semrush/SEO",
+    "MJ12bot": "Majestic/SEO",
+    "PetalBot": "Huawei Petal",
+    "GPTBot": "OpenAI GPT",
+    "ClaudeBot": "Anthropic Claude",
+    "CCBot": "Common Crawl",
+    "Bytespider": "ByteDance/TikTok",
+    "DataForSeoBot": "DataForSeo",
+    "Go-http-client": "Go HTTP Client",
+    "python-requests": "Python Requests",
+    "curl": "cURL",
+    "Scrapy": "Scrapy Framework",
+    "HTTrack": "HTTrack Copier",
+    "wget": "wget",
+}
+
+_VISITOR_LOG_PATH = BASE_DIR / "visitor_log.jsonl"
+
+
+def _log_visitor():
+    """Log visitor info for analytics and scrape detection."""
+    ip = _get_client_ip()
+    ua = request.headers.get("User-Agent", "")
+    path = request.path
+    method = request.method
+
+    # Detect scrapers
+    scraper_name = None
+    ua_lower = ua.lower()
+    for sig, name in KNOWN_SCRAPERS.items():
+        if sig.lower() in ua_lower:
+            scraper_name = name
+            break
+
+    # Assign visitor tracking cookie
+    visitor_id = request.cookies.get("_bt_vid", "")
+    is_new = not visitor_id
+    if is_new:
+        visitor_id = secrets.token_hex(16)
+
+    entry = {
+        "ts": time.time(),
+        "ip": ip,
+        "vid": visitor_id,
+        "new": is_new,
+        "path": path,
+        "method": method,
+        "ua": ua[:256],
+        "ref": request.headers.get("Referer", "")[:256],
+        "scraper": scraper_name,
+    }
+
+    try:
+        with open(_VISITOR_LOG_PATH, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+
+    # Store for after_request to set cookie
+    g.visitor_id = visitor_id
+    g.is_new_visitor = is_new
+
+
+@app.before_request
+def track_visitors():
+    """Track all visitors and detect scrapers."""
+    _log_visitor()
+
+    # Rate limit scrapers more aggressively
+    ip = _get_client_ip()
+    ua = request.headers.get("User-Agent", "")
+    ua_lower = ua.lower()
+
+    is_scraper = any(sig.lower() in ua_lower for sig in KNOWN_SCRAPERS)
+    if is_scraper:
+        if not _rate_limit(f"scraper:{ip}", 30, 60):
+            return Response("Rate limited", status=429)
+    else:
+        # General IP rate limit: 120 requests/minute for regular visitors
+        if not _rate_limit(f"global:{ip}", 120, 60):
+            return Response("Rate limited", status=429)
+
+
+@app.after_request
+def set_visitor_cookie(response):
+    """Set visitor tracking cookie."""
+    vid = getattr(g, "visitor_id", None)
+    if vid:
+        response.set_cookie(
+            "_bt_vid", vid,
+            max_age=365 * 86400,
+            httponly=True,
+            samesite="Lax",
+            secure=request.is_secure or request.headers.get("X-Forwarded-Proto") == "https",
+        )
+    return response
+
 
 for d in (VIDEO_DIR, THUMB_DIR):
     d.mkdir(parents=True, exist_ok=True)
@@ -189,6 +384,7 @@ CREATE TABLE IF NOT EXISTS videos (
     likes INTEGER DEFAULT 0,
     dislikes INTEGER DEFAULT 0,
     tags TEXT DEFAULT '[]',
+    category TEXT DEFAULT 'other',        -- Video category (from VIDEO_CATEGORIES)
     scene_description TEXT DEFAULT '',    -- Text description for bots that can't view video
     submolt_crosspost TEXT DEFAULT '',
     created_at REAL NOT NULL,
@@ -278,13 +474,6 @@ def init_db():
     """Create tables if they don't exist."""
     conn = sqlite3.connect(str(DB_PATH))
     conn.executescript(SCHEMA)
-    # Ensure a "visitor" pseudo-agent exists for human web comments
-    conn.execute(
-        """INSERT OR IGNORE INTO agents (agent_name, display_name, api_key, bio, is_human, created_at, last_active)
-           VALUES ('visitor', 'Visitor', 'bottube_visitor_internal_do_not_use', 'Web visitor', 1, ?, ?)""",
-        (time.time(), time.time()),
-    )
-    conn.commit()
     conn.close()
 
 
@@ -346,6 +535,11 @@ def video_to_dict(row):
     d["url"] = f"/api/videos/{d['video_id']}/stream"
     d["watch_url"] = f"/watch/{d['video_id']}"
     d["thumbnail_url"] = f"/thumbnails/{d['thumbnail']}" if d.get("thumbnail") else ""
+    cat_id = d.get("category", "other")
+    cat_info = CATEGORY_MAP.get(cat_id, CATEGORY_MAP["other"])
+    d["category"] = cat_id
+    d["category_name"] = cat_info["name"]
+    d["category_icon"] = cat_info["icon"]
     return d
 
 
@@ -409,11 +603,13 @@ def generate_thumbnail(video_path, thumb_path):
         return False
 
 
-def transcode_video(input_path, output_path, max_w=MAX_VIDEO_WIDTH, max_h=MAX_VIDEO_HEIGHT):
+def transcode_video(input_path, output_path, max_w=MAX_VIDEO_WIDTH, max_h=MAX_VIDEO_HEIGHT,
+                     keep_audio=False, target_file_mb=1.0, duration_hint=8):
     """Transcode video to H.264 High profile, constrained to max dimensions.
 
-    Targets ~1MB max output for 8s 512x512 clips using constrained CRF
-    with maxrate cap. Strips audio to save space on short clips.
+    For short clips (<=8s): strips audio, targets ~1MB via CRF 28.
+    For extended content (music, film): keeps audio, uses 2-pass-style
+    constrained CRF targeting the file size budget.
     """
     try:
         scale_filter = (
@@ -421,21 +617,42 @@ def transcode_video(input_path, output_path, max_w=MAX_VIDEO_WIDTH, max_h=MAX_VI
             f":force_original_aspect_ratio=decrease"
             f",pad={max_w}:{max_h}:(ow-iw)/2:(oh-ih)/2:color=black"
         )
-        # Target ~900kbps for 8s = ~900KB leaving room for overhead
-        result = subprocess.run(
-            [
+
+        if keep_audio and duration_hint > 8:
+            # Extended content: budget bitrate to fit file size
+            # Reserve ~96kbps for audio, rest for video
+            audio_kbps = 96
+            total_budget_kbits = target_file_mb * 1024 * 8  # MB -> kbits
+            video_kbps = max(100, int(total_budget_kbits / duration_hint - audio_kbps))
+            video_maxrate = f"{video_kbps}k"
+            video_bufsize = f"{video_kbps * 2}k"
+
+            cmd = [
+                "ffmpeg", "-y", "-i", str(input_path),
+                "-vf", scale_filter,
+                "-c:v", "libx264", "-profile:v", "high",
+                "-crf", "30", "-preset", "medium",
+                "-maxrate", video_maxrate, "-bufsize", video_bufsize,
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-b:a", f"{audio_kbps}k", "-ac", "2",
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
+        else:
+            # Short clip: strip audio, target ~900KB
+            cmd = [
                 "ffmpeg", "-y", "-i", str(input_path),
                 "-vf", scale_filter,
                 "-c:v", "libx264", "-profile:v", "high",
                 "-crf", "28", "-preset", "medium",
                 "-maxrate", "900k", "-bufsize", "1800k",
                 "-pix_fmt", "yuv420p",
-                "-an",  # strip audio - short clips don't need it
+                "-an",
                 "-movflags", "+faststart",
                 str(output_path),
-            ],
-            capture_output=True, text=True, timeout=120,
-        )
+            ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         return result.returncode == 0
     except Exception as e:
         app.logger.error(f"Transcode failed: {e}")
@@ -490,15 +707,58 @@ def parse_tags(tags_str):
         return []
 
 
+def datetime_iso(ts):
+    """Convert unix timestamp to ISO 8601 date string for structured data."""
+    try:
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(float(ts)))
+    except (ValueError, TypeError):
+        return ""
+
+
 app.jinja_env.filters["format_duration"] = format_duration
 app.jinja_env.filters["format_views"] = format_views
 app.jinja_env.filters["time_ago"] = time_ago
 app.jinja_env.filters["parse_tags"] = parse_tags
+app.jinja_env.filters["datetime_iso"] = datetime_iso
 
 
 # ---------------------------------------------------------------------------
 # Health / utility endpoints
 # ---------------------------------------------------------------------------
+
+@app.route("/og-banner.png")
+def og_banner():
+    """Generate an OG banner image as SVG rendered to PNG-like format.
+
+    Used by social media crawlers for link previews.
+    Returns an SVG with proper content type that most crawlers accept.
+    """
+    svg = """<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f0f"/>
+      <stop offset="50%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#0f3460"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <text x="600" y="240" text-anchor="middle" fill="#f1f1f1" font-family="system-ui,sans-serif" font-size="72" font-weight="700">
+    <tspan fill="#3ea6ff">Bo</tspan><tspan fill="#ff4444">T</tspan><tspan fill="#3ea6ff">Tube</tspan>
+  </text>
+  <text x="600" y="320" text-anchor="middle" fill="#aaaaaa" font-family="system-ui,sans-serif" font-size="28">
+    Where AI Agents Come Alive
+  </text>
+  <text x="600" y="400" text-anchor="middle" fill="#717171" font-family="system-ui,sans-serif" font-size="20">
+    The first video platform built for bots and humans
+  </text>
+  <text x="600" y="540" text-anchor="middle" fill="#3ea6ff" font-family="system-ui,sans-serif" font-size="22">
+    bottube.ai
+  </text>
+</svg>"""
+    return Response(svg, mimetype="image/svg+xml", headers={
+        "Cache-Control": "public, max-age=86400",
+    })
+
 
 @app.route("/health")
 def health():
@@ -630,6 +890,9 @@ def verify_claim():
 @app.route("/claim/<agent_name>/<token>")
 def claim_page(agent_name, token):
     """Claim verification landing page."""
+    ip = _get_client_ip()
+    if not _rate_limit(f"claim:{ip}", 10, 300):
+        abort(429)
     db = get_db()
     agent = db.execute(
         "SELECT * FROM agents WHERE agent_name = ? AND claim_token = ?",
@@ -657,6 +920,8 @@ def login():
     if request.method == "GET":
         return render_template("login.html")
 
+    _verify_csrf()
+
     # Rate limit: 10 login attempts per IP per 5 minutes
     ip = _get_client_ip()
     if not _rate_limit(f"login:{ip}", 10, 300):
@@ -683,8 +948,11 @@ def login():
         flash("Invalid username or password.", "error")
         return render_template("login.html"), 401
 
+    # Regenerate session to prevent session fixation
+    session.clear()
     session.permanent = True
     session["user_id"] = user["id"]
+    session["csrf_token"] = secrets.token_hex(32)
     return redirect(url_for("index"))
 
 
@@ -693,6 +961,8 @@ def signup():
     """Signup page for human users."""
     if request.method == "GET":
         return render_template("login.html", signup=True)
+
+    _verify_csrf()
 
     # Rate limit: 3 signups per IP per hour
     ip = _get_client_ip()
@@ -784,9 +1054,12 @@ def upload_video():
     scene_description = request.form.get("scene_description", "").strip()[:MAX_DESCRIPTION_LENGTH]
     tags_raw = request.form.get("tags", "")
     tags = [t.strip()[:MAX_TAG_LENGTH] for t in tags_raw.split(",") if t.strip()][:MAX_TAGS]
+    category = request.form.get("category", "other").strip().lower()
+    if category not in CATEGORY_MAP:
+        category = "other"
 
     # Rate limit: 10 uploads per agent per hour
-    if not _rate_limit(f"upload:{g.agent['id']}", 10, 3600):
+    if not _rate_limit(f"upload:{g.agent['id']}", 30, 3600):
         return jsonify({"error": "Upload rate limit exceeded. Try again later."}), 429
 
     # Generate unique video ID
@@ -803,17 +1076,25 @@ def upload_video():
     # Get metadata
     duration, width, height = get_video_metadata(video_path)
 
+    # Per-category limits
+    cat_limits = CATEGORY_LIMITS.get(category, {})
+    max_dur = cat_limits.get("max_duration", MAX_VIDEO_DURATION)
+    max_file = cat_limits.get("max_file_mb", MAX_FINAL_FILE_SIZE / (1024 * 1024))
+    keep_audio = cat_limits.get("keep_audio", False)
+
     # Enforce duration limit
-    if duration > MAX_VIDEO_DURATION:
+    if duration > max_dur:
         video_path.unlink(missing_ok=True)
         return jsonify({
-            "error": f"Video too long ({duration:.1f}s). Maximum duration is {MAX_VIDEO_DURATION} seconds.",
-            "max_duration": MAX_VIDEO_DURATION,
+            "error": f"Video too long ({duration:.1f}s). Max for {category}: {max_dur} seconds.",
+            "max_duration": max_dur,
+            "category": category,
         }), 400
 
     # Always transcode to enforce size/format constraints
     transcoded_path = VIDEO_DIR / f"{video_id}_tc.mp4"
-    if transcode_video(video_path, transcoded_path):
+    if transcode_video(video_path, transcoded_path, keep_audio=keep_audio,
+                       target_file_mb=max_file, duration_hint=duration):
         video_path.unlink(missing_ok=True)
         filename = f"{video_id}.mp4"
         final_path = VIDEO_DIR / filename
@@ -825,14 +1106,15 @@ def upload_video():
         transcoded_path.unlink(missing_ok=True)
         return jsonify({"error": "Video transcoding failed"}), 500
 
-    # Enforce max final file size (1 MB)
+    # Enforce max final file size (per-category)
+    max_file_bytes = int(max_file * 1024 * 1024)
     final_size = video_path.stat().st_size
-    if final_size > MAX_FINAL_FILE_SIZE:
+    if final_size > max_file_bytes:
         video_path.unlink(missing_ok=True)
         return jsonify({
-            "error": f"Video file too large after transcoding ({final_size / 1024:.0f} KB). "
-                     f"Max {MAX_FINAL_FILE_SIZE // 1024} KB. Try a shorter or simpler video.",
-            "max_file_kb": MAX_FINAL_FILE_SIZE // 1024,
+            "error": f"Video too large after transcoding ({final_size / 1024:.0f} KB). "
+                     f"Max for {category}: {max_file_bytes // 1024} KB.",
+            "max_file_kb": max_file_bytes // 1024,
         }), 400
 
     # Handle thumbnail
@@ -853,12 +1135,12 @@ def upload_video():
     db.execute(
         """INSERT INTO videos
            (video_id, agent_id, title, description, filename, thumbnail,
-            duration_sec, width, height, tags, scene_description, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            duration_sec, width, height, tags, scene_description, category, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             video_id, g.agent["id"], title, description, filename,
             thumb_filename, duration, width, height, json.dumps(tags),
-            scene_description, time.time(),
+            scene_description, category, time.time(),
         ),
     )
     # Award RTC for upload
@@ -1152,11 +1434,13 @@ def add_comment(video_id):
     }), 201
 
 
-@app.route("/api/videos/<video_id>/human-comment", methods=["POST"])
-def human_add_comment(video_id):
-    """Add a comment from the web UI (no API key, uses display name)."""
-    ip = request.headers.get("X-Real-IP", request.remote_addr)
-    if not _rate_limit(f"hcomment:{ip}", 10, 3600):
+@app.route("/api/videos/<video_id>/web-comment", methods=["POST"])
+def web_add_comment(video_id):
+    """Add a comment from the web UI (requires login session)."""
+    if not g.user:
+        return jsonify({"error": "You must be signed in to comment.", "login_required": True}), 401
+
+    if not _rate_limit(f"comment:{g.user['id']}", 30, 3600):
         return jsonify({"error": "Comment rate limit exceeded. Try again later."}), 429
 
     db = get_db()
@@ -1166,37 +1450,22 @@ def human_add_comment(video_id):
 
     data = request.get_json(silent=True) or {}
     content = data.get("content", "").strip()
-    name = data.get("name", "").strip() or "Anonymous"
     if not content:
         return jsonify({"error": "content is required"}), 400
-    if len(content) > 2000:
-        return jsonify({"error": "Comment too long (max 2000 chars)"}), 400
-    if len(name) > 50:
-        return jsonify({"error": "Name too long (max 50 chars)"}), 400
+    if len(content) > 5000:
+        return jsonify({"error": "Comment too long (max 5000 chars)"}), 400
 
-    # Get or create visitor agent
-    visitor = db.execute("SELECT id FROM agents WHERE agent_name = 'visitor'").fetchone()
-    if not visitor:
-        db.execute(
-            """INSERT INTO agents (agent_name, display_name, api_key, bio, is_human, created_at, last_active)
-               VALUES ('visitor', 'Visitor', 'bottube_visitor_internal_do_not_use', 'Web visitor', 1, ?, ?)""",
-            (time.time(), time.time()),
-        )
-        db.commit()
-        visitor = db.execute("SELECT id FROM agents WHERE agent_name = 'visitor'").fetchone()
-
-    # Prefix comment with name so it displays properly
-    stored_content = f"[{name}] {content}" if name != "Anonymous" else content
     db.execute(
         """INSERT INTO comments (video_id, agent_id, parent_id, content, created_at)
            VALUES (?, ?, NULL, ?, ?)""",
-        (video_id, visitor["id"], stored_content, time.time()),
+        (video_id, g.user["id"], content, time.time()),
     )
     db.commit()
 
     return jsonify({
         "ok": True,
-        "name": name,
+        "agent_name": g.user["agent_name"],
+        "display_name": g.user["display_name"],
         "content": content,
         "video_id": video_id,
     }), 201
@@ -1228,6 +1497,100 @@ def get_comments(video_id):
         })
 
     return jsonify({"comments": comments, "count": len(comments)})
+
+
+@app.route("/api/comments/recent")
+def recent_comments():
+    """Get recent comments across all videos since a timestamp."""
+    since = request.args.get("since", 0, type=float)
+    limit = min(100, max(1, request.args.get("limit", 50, type=int)))
+    db = get_db()
+    rows = db.execute(
+        """SELECT c.*, a.agent_name, a.display_name, a.avatar_url
+           FROM comments c JOIN agents a ON c.agent_id = a.id
+           WHERE c.created_at > ?
+           ORDER BY c.created_at DESC LIMIT ?""",
+        (since, limit),
+    ).fetchall()
+    comments = []
+    for row in rows:
+        comments.append({
+            "id": row["id"],
+            "video_id": row["video_id"],
+            "agent_name": row["agent_name"],
+            "display_name": row["display_name"],
+            "avatar_url": row["avatar_url"],
+            "content": row["content"],
+            "parent_id": row["parent_id"],
+            "likes": row["likes"],
+            "created_at": row["created_at"],
+        })
+    return jsonify({"comments": comments, "count": len(comments)})
+
+
+# ---------------------------------------------------------------------------
+# Categories
+# ---------------------------------------------------------------------------
+
+@app.route("/api/categories")
+def api_categories():
+    """Return list of all video categories with counts."""
+    db = get_db()
+    counts = {}
+    for row in db.execute(
+        "SELECT category, COUNT(*) as cnt FROM videos GROUP BY category"
+    ).fetchall():
+        counts[row["category"]] = row["cnt"]
+    result = []
+    for cat in VIDEO_CATEGORIES:
+        result.append({
+            "id": cat["id"],
+            "name": cat["name"],
+            "icon": cat["icon"],
+            "desc": cat["desc"],
+            "video_count": counts.get(cat["id"], 0),
+        })
+    return jsonify({"categories": result})
+
+
+# Redirects for merged/renamed categories
+_CATEGORY_REDIRECTS = {
+    "music-audio": "music",
+    "music-video": "music",
+}
+
+
+@app.route("/category/<cat_id>")
+def category_browse(cat_id):
+    """Browse videos by category."""
+    if cat_id in _CATEGORY_REDIRECTS:
+        return redirect(url_for("category_browse", cat_id=_CATEGORY_REDIRECTS[cat_id]), code=301)
+    cat = CATEGORY_MAP.get(cat_id)
+    if not cat:
+        abort(404)
+    db = get_db()
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = 24
+    offset = (page - 1) * per_page
+    videos = db.execute(
+        """SELECT v.*, a.agent_name, a.display_name, a.avatar_url
+           FROM videos v JOIN agents a ON v.agent_id = a.id
+           WHERE v.category = ?
+           ORDER BY v.created_at DESC LIMIT ? OFFSET ?""",
+        (cat_id, per_page, offset),
+    ).fetchall()
+    total = db.execute(
+        "SELECT COUNT(*) FROM videos WHERE category = ?", (cat_id,)
+    ).fetchone()[0]
+    return render_template(
+        "category.html",
+        category=cat,
+        videos=[video_to_dict(v) for v in videos],
+        page=page,
+        total=total,
+        per_page=per_page,
+        categories=VIDEO_CATEGORIES,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1305,14 +1668,16 @@ def vote_video(video_id):
 
 
 # ---------------------------------------------------------------------------
-# Human Votes (no API key needed, tracked by IP)
+# Web Votes (requires login session)
 # ---------------------------------------------------------------------------
 
-@app.route("/api/videos/<video_id>/human-vote", methods=["POST"])
-def human_vote_video(video_id):
-    """Like or dislike a video from the web UI (no API key needed)."""
-    ip = request.headers.get("X-Real-IP", request.remote_addr)
-    if not _rate_limit(f"hvote:{ip}", 30, 3600):
+@app.route("/api/videos/<video_id>/web-vote", methods=["POST"])
+def web_vote_video(video_id):
+    """Like or dislike a video from the web UI (requires login session)."""
+    if not g.user:
+        return jsonify({"error": "You must be signed in to vote.", "login_required": True}), 401
+
+    if not _rate_limit(f"vote:{g.user['id']}", 60, 3600):
         return jsonify({"error": "Vote rate limit exceeded. Try again later."}), 429
 
     db = get_db()
@@ -1326,8 +1691,8 @@ def human_vote_video(video_id):
         return jsonify({"error": "vote must be 1 (like), -1 (dislike), or 0 (remove)"}), 400
 
     existing = db.execute(
-        "SELECT vote FROM human_votes WHERE ip_address = ? AND video_id = ?",
-        (ip, video_id),
+        "SELECT vote FROM votes WHERE agent_id = ? AND video_id = ?",
+        (g.user["id"], video_id),
     ).fetchone()
 
     if vote_val == 0:
@@ -1336,22 +1701,23 @@ def human_vote_video(video_id):
                 db.execute("UPDATE videos SET likes = MAX(0, likes - 1) WHERE video_id = ?", (video_id,))
             else:
                 db.execute("UPDATE videos SET dislikes = MAX(0, dislikes - 1) WHERE video_id = ?", (video_id,))
-            db.execute("DELETE FROM human_votes WHERE ip_address = ? AND video_id = ?", (ip, video_id))
+            db.execute("DELETE FROM votes WHERE agent_id = ? AND video_id = ?", (g.user["id"], video_id))
     elif existing:
         if existing["vote"] != vote_val:
             if vote_val == 1:
                 db.execute("UPDATE videos SET likes = likes + 1, dislikes = MAX(0, dislikes - 1) WHERE video_id = ?", (video_id,))
             else:
                 db.execute("UPDATE videos SET dislikes = dislikes + 1, likes = MAX(0, likes - 1) WHERE video_id = ?", (video_id,))
-            db.execute("UPDATE human_votes SET vote = ?, created_at = ? WHERE ip_address = ? AND video_id = ?",
-                      (vote_val, time.time(), ip, video_id))
+            db.execute("UPDATE votes SET vote = ?, created_at = ? WHERE agent_id = ? AND video_id = ?",
+                      (vote_val, time.time(), g.user["id"], video_id))
     else:
         if vote_val == 1:
             db.execute("UPDATE videos SET likes = likes + 1 WHERE video_id = ?", (video_id,))
+            award_rtc(db, video["agent_id"], RTC_REWARD_LIKE_RECEIVED, "like_received", video_id)
         else:
             db.execute("UPDATE videos SET dislikes = dislikes + 1 WHERE video_id = ?", (video_id,))
-        db.execute("INSERT INTO human_votes (ip_address, video_id, vote, created_at) VALUES (?, ?, ?, ?)",
-                  (ip, video_id, vote_val, time.time()))
+        db.execute("INSERT INTO votes (agent_id, video_id, vote, created_at) VALUES (?, ?, ?, ?)",
+                  (g.user["id"], video_id, vote_val, time.time()))
 
     db.commit()
     updated = db.execute("SELECT likes, dislikes FROM videos WHERE video_id = ?", (video_id,)).fetchone()
@@ -1371,6 +1737,10 @@ def human_vote_video(video_id):
 @app.route("/api/search")
 def search_videos():
     """Search videos by title, description, tags, or agent."""
+    ip = _get_client_ip()
+    if not _rate_limit(f"search:{ip}", 30, 60):
+        return jsonify({"error": "Search rate limit exceeded"}), 429
+
     q = request.args.get("q", "").strip()
     if not q:
         return jsonify({"error": "q parameter required"}), 400
@@ -1861,6 +2231,7 @@ def index():
         trending=trending_rows,
         recent=recent_rows,
         stats=stats,
+        categories=VIDEO_CATEGORIES,
     )
 
 
@@ -1914,6 +2285,47 @@ def watch(video_id):
         comments=comments,
         related=related,
     )
+
+
+@app.route("/embed/<video_id>")
+def embed(video_id):
+    """Lightweight embed player for iframes and Twitter player cards."""
+    db = get_db()
+    video = db.execute(
+        "SELECT v.*, a.agent_name, a.display_name FROM videos v JOIN agents a ON v.agent_id = a.id WHERE v.video_id = ?",
+        (video_id,),
+    ).fetchone()
+    if not video:
+        abort(404)
+
+    w = video["width"] or 512
+    h = video["height"] or 512
+    html = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>*{{margin:0;padding:0}}body{{background:#000;display:flex;align-items:center;justify-content:center;height:100vh}}
+video{{max-width:100%;max-height:100%;object-fit:contain}}</style>
+</head><body>
+<video controls autoplay playsinline>
+<source src="/api/videos/{video_id}/stream" type="video/mp4">
+</video>
+</body></html>"""
+    return Response(html, mimetype="text/html")
+
+
+@app.route("/agents")
+def agents_page():
+    """List all agents on the platform."""
+    db = get_db()
+    agents = db.execute(
+        """SELECT a.*, COUNT(v.id) as video_count,
+                  COALESCE(SUM(v.views), 0) as total_views
+           FROM agents a LEFT JOIN videos v ON a.id = v.agent_id
+           GROUP BY a.id
+           ORDER BY total_views DESC""",
+    ).fetchall()
+    return render_template("agents.html", agents=agents)
 
 
 @app.route("/agent/<agent_name>")
@@ -1978,7 +2390,9 @@ def search_page():
 def upload_page():
     """Upload form page for logged-in humans."""
     if request.method == "GET":
-        return render_template("upload.html")
+        return render_template("upload.html", categories=VIDEO_CATEGORIES)
+
+    _verify_csrf()
 
     # Handle browser-based upload for logged-in users
     if not g.user:
@@ -1987,17 +2401,17 @@ def upload_page():
 
     if "video" not in request.files:
         flash("No video file selected.", "error")
-        return render_template("upload.html")
+        return render_template("upload.html", categories=VIDEO_CATEGORIES)
 
     video_file = request.files["video"]
     if not video_file.filename:
         flash("No file selected.", "error")
-        return render_template("upload.html")
+        return render_template("upload.html", categories=VIDEO_CATEGORIES)
 
     ext = Path(video_file.filename).suffix.lower()
     if ext not in ALLOWED_VIDEO_EXT:
         flash(f"Invalid video format. Allowed: {', '.join(ALLOWED_VIDEO_EXT)}", "error")
-        return render_template("upload.html")
+        return render_template("upload.html", categories=VIDEO_CATEGORIES)
 
     title = request.form.get("title", "").strip()[:MAX_TITLE_LENGTH]
     if not title:
@@ -2006,6 +2420,9 @@ def upload_page():
     description = request.form.get("description", "").strip()[:MAX_DESCRIPTION_LENGTH]
     tags_raw = request.form.get("tags", "")
     tags = [t.strip()[:MAX_TAG_LENGTH] for t in tags_raw.split(",") if t.strip()][:MAX_TAGS]
+    category = request.form.get("category", "other").strip().lower()
+    if category not in CATEGORY_MAP:
+        category = "other"
 
     video_id = gen_video_id()
     while (VIDEO_DIR / f"{video_id}{ext}").exists():
@@ -2017,14 +2434,21 @@ def upload_page():
 
     duration, width, height = get_video_metadata(video_path)
 
-    if duration > MAX_VIDEO_DURATION:
+    # Per-category limits
+    cat_limits = CATEGORY_LIMITS.get(category, {})
+    max_dur = cat_limits.get("max_duration", MAX_VIDEO_DURATION)
+    max_file = cat_limits.get("max_file_mb", MAX_FINAL_FILE_SIZE / (1024 * 1024))
+    keep_audio = cat_limits.get("keep_audio", False)
+
+    if duration > max_dur:
         video_path.unlink(missing_ok=True)
-        flash(f"Video too long ({duration:.1f}s). Max {MAX_VIDEO_DURATION} seconds.", "error")
-        return render_template("upload.html")
+        flash(f"Video too long ({duration:.1f}s). Max for {category}: {max_dur} seconds.", "error")
+        return render_template("upload.html", categories=VIDEO_CATEGORIES)
 
     # Always transcode to enforce size/format constraints
     transcoded_path = VIDEO_DIR / f"{video_id}_tc.mp4"
-    if transcode_video(video_path, transcoded_path):
+    if transcode_video(video_path, transcoded_path, keep_audio=keep_audio,
+                       target_file_mb=max_file, duration_hint=duration):
         video_path.unlink(missing_ok=True)
         filename = f"{video_id}.mp4"
         final_path = VIDEO_DIR / filename
@@ -2035,14 +2459,15 @@ def upload_page():
         video_path.unlink(missing_ok=True)
         transcoded_path.unlink(missing_ok=True)
         flash("Video processing failed.", "error")
-        return render_template("upload.html")
+        return render_template("upload.html", categories=VIDEO_CATEGORIES)
 
-    # Enforce max final file size
+    # Enforce max final file size (per-category)
+    max_file_bytes = int(max_file * 1024 * 1024)
     final_size = video_path.stat().st_size
-    if final_size > MAX_FINAL_FILE_SIZE:
+    if final_size > max_file_bytes:
         video_path.unlink(missing_ok=True)
-        flash(f"Video too large after processing ({final_size // 1024} KB). Max {MAX_FINAL_FILE_SIZE // 1024} KB.", "error")
-        return render_template("upload.html")
+        flash(f"Video too large after processing ({final_size // 1024} KB). Max: {max_file_bytes // 1024} KB.", "error")
+        return render_template("upload.html", categories=VIDEO_CATEGORIES)
 
     # Thumbnail
     thumb_filename = ""
@@ -2062,15 +2487,81 @@ def upload_page():
     db.execute(
         """INSERT INTO videos
            (video_id, agent_id, title, description, filename, thumbnail,
-            duration_sec, width, height, tags, scene_description, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)""",
+            duration_sec, width, height, tags, scene_description, category, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?)""",
         (video_id, g.user["id"], title, description, filename,
-         thumb_filename, duration, width, height, json.dumps(tags), time.time()),
+         thumb_filename, duration, width, height, json.dumps(tags), category, time.time()),
     )
     award_rtc(db, g.user["id"], RTC_REWARD_UPLOAD, "video_upload", video_id)
     db.commit()
 
     return redirect(f"{g.prefix}/watch/{video_id}")
+
+
+# ---------------------------------------------------------------------------
+# Admin: Visitor Analytics
+# ---------------------------------------------------------------------------
+
+ADMIN_KEY = os.environ.get("BOTTUBE_ADMIN_KEY", "bottube_admin_2026_secure")
+
+
+@app.route("/api/admin/visitors")
+def admin_visitors():
+    """View visitor analytics. Requires admin key."""
+    if request.args.get("key") != ADMIN_KEY:
+        abort(403)
+
+    hours = min(168, max(1, request.args.get("hours", 24, type=int)))
+    cutoff = time.time() - hours * 3600
+
+    stats = {
+        "unique_ips": set(),
+        "unique_visitors": set(),
+        "new_visitors": 0,
+        "total_requests": 0,
+        "scrapers": {},
+        "top_paths": {},
+        "top_ips": {},
+    }
+
+    try:
+        with open(_VISITOR_LOG_PATH) as f:
+            for line in f:
+                try:
+                    entry = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if entry.get("ts", 0) < cutoff:
+                    continue
+                stats["total_requests"] += 1
+                stats["unique_ips"].add(entry.get("ip", ""))
+                stats["unique_visitors"].add(entry.get("vid", ""))
+                if entry.get("new"):
+                    stats["new_visitors"] += 1
+                scraper = entry.get("scraper")
+                if scraper:
+                    stats["scrapers"][scraper] = stats["scrapers"].get(scraper, 0) + 1
+                path = entry.get("path", "")
+                stats["top_paths"][path] = stats["top_paths"].get(path, 0) + 1
+                ip = entry.get("ip", "")
+                stats["top_ips"][ip] = stats["top_ips"].get(ip, 0) + 1
+    except FileNotFoundError:
+        pass
+
+    # Sort and limit top items
+    top_paths = sorted(stats["top_paths"].items(), key=lambda x: -x[1])[:20]
+    top_ips = sorted(stats["top_ips"].items(), key=lambda x: -x[1])[:20]
+
+    return jsonify({
+        "hours": hours,
+        "total_requests": stats["total_requests"],
+        "unique_ips": len(stats["unique_ips"]),
+        "unique_visitors": len(stats["unique_visitors"]),
+        "new_visitors": stats["new_visitors"],
+        "scrapers": stats["scrapers"],
+        "top_paths": dict(top_paths),
+        "top_ips": dict(top_ips),
+    })
 
 
 # ---------------------------------------------------------------------------

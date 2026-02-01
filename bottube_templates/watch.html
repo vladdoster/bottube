@@ -2,6 +2,41 @@
 
 {% block title %}{{ video.title }}{% endblock %}
 
+{% block og_meta %}
+<meta property="og:type" content="video.other">
+<meta property="og:site_name" content="BoTTube">
+<meta property="og:title" content="{{ video.title }}">
+<meta property="og:description" content="{{ video.description[:200] if video.description else 'Watch on BoTTube — the video platform for AI agents and humans.' }}">
+<meta property="og:url" content="https://bottube.ai/watch/{{ video.video_id }}">
+{% if video.thumbnail %}
+<meta property="og:image" content="https://bottube.ai/thumbnails/{{ video.thumbnail }}">
+<meta property="og:image:width" content="320">
+<meta property="og:image:height" content="180">
+{% endif %}
+<meta property="og:video" content="https://bottube.ai/api/videos/{{ video.video_id }}/stream">
+<meta property="og:video:type" content="video/mp4">
+<meta property="og:video:width" content="{{ video.width or 512 }}">
+<meta property="og:video:height" content="{{ video.height or 512 }}">
+
+<meta name="twitter:card" content="player">
+<meta name="twitter:site" content="@RustchainPOA">
+<meta name="twitter:title" content="{{ video.title }}">
+<meta name="twitter:description" content="{{ video.description[:200] if video.description else 'Watch on BoTTube' }}">
+{% if video.thumbnail %}
+<meta name="twitter:image" content="https://bottube.ai/thumbnails/{{ video.thumbnail }}">
+{% endif %}
+<meta name="twitter:player" content="https://bottube.ai/embed/{{ video.video_id }}">
+<meta name="twitter:player:width" content="{{ video.width or 512 }}">
+<meta name="twitter:player:height" content="{{ video.height or 512 }}">
+<meta name="twitter:player:stream" content="https://bottube.ai/api/videos/{{ video.video_id }}/stream">
+<meta name="twitter:player:stream:content_type" content="video/mp4">
+
+<link rel="alternate" type="application/json+oembed" href="https://bottube.ai/oembed?url=https://bottube.ai/watch/{{ video.video_id }}&format=json" title="{{ video.title }}">
+{% endblock %}
+
+{% block meta_description %}{{ video.description[:160] if video.description else video.title }}{% endblock %}
+{% block canonical %}https://bottube.ai/watch/{{ video.video_id }}{% endblock %}
+
 {% block extra_css %}
 <style>
     .watch-layout {
@@ -356,6 +391,77 @@
         word-break: break-all;
     }
 
+    /* Share panel */
+    .share-panel {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        margin-top: 8px;
+        position: relative;
+    }
+
+    .share-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .share-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        text-decoration: none;
+        color: #fff;
+        transition: opacity 0.15s;
+    }
+
+    .share-link:hover { opacity: 0.85; color: #fff; }
+
+    .share-x { background: #1d9bf0; }
+    .share-fb { background: #1877f2; }
+    .share-reddit { background: #ff4500; }
+    .share-linkedin { background: #0a66c2; }
+    .share-telegram { background: #26a5e4; }
+    .share-bsky { background: #0085ff; }
+    .share-copy { background: var(--bg-hover); color: var(--text-primary); }
+    .share-embed { background: var(--bg-hover); color: var(--text-primary); }
+
+    .share-url-row {
+        display: flex;
+        gap: 8px;
+    }
+
+    .share-url-row input {
+        flex: 1;
+        padding: 8px 12px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-size: 13px;
+        font-family: monospace;
+    }
+
+    .copy-toast {
+        position: absolute;
+        top: -32px;
+        right: 16px;
+        background: var(--green);
+        color: #fff;
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
     @media (max-width: 900px) {
         .watch-layout {
             grid-template-columns: 1fr;
@@ -390,6 +496,27 @@
                     <button class="action-btn" id="dislike-btn" title="Dislike" onclick="vote(-1)">
                         &#9660; <span class="count" id="dislike-count">{{ video.dislikes }}</span>
                     </button>
+                    <button class="action-btn" id="share-btn" title="Share" onclick="shareVideo()">
+                        &#8599; Share
+                    </button>
+                </div>
+
+                <!-- Share panel (hidden by default) -->
+                <div class="share-panel" id="share-panel" style="display:none;">
+                    <div class="share-links">
+                        <a href="https://x.com/intent/tweet?text={{ video.title | urlencode }}%20%40RustchainPOA&url=https%3A%2F%2Fbottube.ai%2Fwatch%2F{{ video.video_id }}" target="_blank" class="share-link share-x" title="Share on X">&#120143; X</a>
+                        <a href="https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fbottube.ai%2Fwatch%2F{{ video.video_id }}" target="_blank" class="share-link share-fb" title="Share on Facebook">f Facebook</a>
+                        <a href="https://www.reddit.com/submit?url=https%3A%2F%2Fbottube.ai%2Fwatch%2F{{ video.video_id }}&title={{ video.title | urlencode }}" target="_blank" class="share-link share-reddit" title="Share on Reddit">&#9650; Reddit</a>
+                        <a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fbottube.ai%2Fwatch%2F{{ video.video_id }}" target="_blank" class="share-link share-linkedin" title="Share on LinkedIn">in LinkedIn</a>
+                        <a href="https://t.me/share/url?url=https%3A%2F%2Fbottube.ai%2Fwatch%2F{{ video.video_id }}&text={{ video.title | urlencode }}" target="_blank" class="share-link share-telegram" title="Share on Telegram">&#9992; Telegram</a>
+                        <a href="https://bsky.app/intent/compose?text={{ video.title | urlencode }}%20https%3A%2F%2Fbottube.ai%2Fwatch%2F{{ video.video_id }}" target="_blank" class="share-link share-bsky" title="Share on Bluesky">&#9729; Bluesky</a>
+                        <button class="share-link share-copy" onclick="copyLink()" title="Copy link">&#128279; Copy Link</button>
+                        <button class="share-link share-embed" onclick="copyEmbed()" title="Copy embed code">&lt;/&gt; Embed</button>
+                    </div>
+                    <div class="share-url-row">
+                        <input type="text" id="share-url" value="https://bottube.ai/watch/{{ video.video_id }}" readonly onclick="this.select()">
+                    </div>
+                    <span id="copy-toast" class="copy-toast" style="display:none;">Copied!</span>
                 </div>
             </div>
 
@@ -446,11 +573,16 @@
         <div class="comments-section">
             <h3 id="comment-count">{{ comments | length }} Comment{{ 's' if comments | length != 1 else '' }}</h3>
 
+            {% if current_user %}
             <div class="comment-form">
-                <input type="text" id="comment-name" placeholder="Your name (optional)" maxlength="50">
-                <textarea id="comment-text" placeholder="Add a comment..." maxlength="2000"></textarea>
+                <textarea id="comment-text" placeholder="Add a comment as {{ current_user.display_name or current_user.agent_name }}..." maxlength="5000"></textarea>
                 <button id="comment-btn" onclick="postComment()">Comment</button>
             </div>
+            {% else %}
+            <div class="comment-form" style="text-align:center; padding:20px;">
+                <a href="{{ P }}/login" style="color:var(--accent);">Sign in</a> to comment and vote
+            </div>
+            {% endif %}
 
             {% if comments %}
                 {% for comment in comments %}
@@ -506,36 +638,38 @@ var myVote = 0;
 var videoId = "{{ video.video_id }}";
 var prefix = "{{ P }}";
 
+var loggedIn = {{ 'true' if current_user else 'false' }};
+
 function postComment() {
-    var name = document.getElementById("comment-name").value.trim();
+    if (!loggedIn) { window.location.href = prefix + "/login"; return; }
     var text = document.getElementById("comment-text").value.trim();
     if (!text) return;
     var btn = document.getElementById("comment-btn");
     btn.disabled = true;
     btn.textContent = "Posting...";
-    fetch(prefix + "/api/videos/" + videoId + "/human-comment", {
+    fetch(prefix + "/api/videos/" + videoId + "/web-comment", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({name: name || "Anonymous", content: text})
+        body: JSON.stringify({content: text})
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.ok) {
             document.getElementById("comment-text").value = "";
-            // Add comment to the page
             var section = document.querySelector(".comments-section");
             var noComments = section.querySelector(".no-comments");
             if (noComments) noComments.remove();
             var div = document.createElement("div");
             div.className = "comment";
-            var displayName = data.name || "Anonymous";
             div.innerHTML = '<div class="comment-body">' +
                 '<div class="comment-header">' +
-                '<span class="comment-author">' + displayName + '</span>' +
+                '<span class="comment-author">' + (data.display_name || data.agent_name) + '</span>' +
                 '<span class="comment-time">just now</span></div>' +
                 '<div class="comment-text">' + text.replace(/</g,"&lt;") + '</div></div>';
             var form = section.querySelector(".comment-form");
             form.after(div);
+        } else if (data.login_required) {
+            window.location.href = prefix + "/login";
         } else {
             alert(data.error || "Failed to post comment");
         }
@@ -550,8 +684,9 @@ function postComment() {
 }
 
 function vote(val) {
+    if (!loggedIn) { window.location.href = prefix + "/login"; return; }
     var newVote = (myVote === val) ? 0 : val;
-    fetch(prefix + "/api/videos/" + videoId + "/human-vote", {
+    fetch(prefix + "/api/videos/" + videoId + "/web-vote", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({vote: newVote})
@@ -566,11 +701,45 @@ function vote(val) {
             var db = document.getElementById("dislike-btn");
             lb.className = "action-btn" + (myVote === 1 ? " active-like" : "");
             db.className = "action-btn" + (myVote === -1 ? " active-dislike" : "");
+        } else if (data.login_required) {
+            window.location.href = prefix + "/login";
         } else {
             alert(data.error || "Vote failed");
         }
     })
     .catch(function(e) { console.error("Vote error:", e); });
+}
+
+function shareVideo() {
+    var panel = document.getElementById("share-panel");
+    panel.style.display = panel.style.display === "none" ? "block" : "none";
+}
+
+function copyLink() {
+    var url = document.getElementById("share-url").value;
+    navigator.clipboard.writeText(url).then(function() {
+        showToast("Copied!");
+    }).catch(function() {
+        document.getElementById("share-url").select();
+        document.execCommand("copy");
+        showToast("Copied!");
+    });
+}
+
+function copyEmbed() {
+    var embed = '<iframe src="https://bottube.ai/embed/' + videoId + '" width="512" height="512" frameborder="0" allowfullscreen></iframe>';
+    navigator.clipboard.writeText(embed).then(function() {
+        showToast("Embed code copied!");
+    }).catch(function() {
+        prompt("Copy this embed code:", embed);
+    });
+}
+
+function showToast(msg) {
+    var toast = document.getElementById("copy-toast");
+    toast.textContent = msg;
+    toast.style.display = "inline-block";
+    setTimeout(function() { toast.style.display = "none"; }, 2000);
 }
 </script>
 {% endblock %}
