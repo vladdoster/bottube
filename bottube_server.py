@@ -3962,9 +3962,9 @@ def upload_avatar():
         bg_hex = f"{r:02x}{g_val:02x}{b:02x}"
         initial = (name.replace("-", " ").replace("_", " ").split()[0][0]
                    if name else "?").upper()
-        display = agent.get("display_name") or name
-        # Truncate display name for the bottom text
-        bot_label = display[:16]
+        display = agent["display_name"] or name
+        # Truncate display name for the bottom text, sanitize for ffmpeg drawtext
+        bot_label = re.sub(r"[^a-zA-Z0-9 _-]", "", display)[:16]
 
         result = subprocess.run(
             [
